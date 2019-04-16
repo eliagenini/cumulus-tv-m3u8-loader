@@ -4,8 +4,6 @@ import urllib2
 import re
 import time
 import pprint
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive
 import json
 import os
 import subprocess, threading
@@ -352,40 +350,6 @@ def logStart():
 
   return
 
-
-def uploadS3(filename, contents):
-  import io
-  import boto3
-  from cStringIO import StringIO
-
-  session = boto3.Session()
-  credentials = session.get_credentials()
-
-  # Credentials are refreshable, so accessing your access key / secret key
-  # separately can lead to a race condition. Use this to get an actual matched
-  # set.
-  credentials = credentials.get_frozen_credentials()
-  access_key = credentials.access_key
-  secret_key = credentials.secret_key
-
-  s3 = boto3.resource(
-    's3',
-    aws_access_key_id=access_key,
-    aws_secret_access_key=secret_key
-  )
-
-  fake_handle = StringIO(contents)
-
-  bucket, filename_only = filename.split('/')
-
-  # notice if you do fake_handle.read() it reads like a file handle
-  file = s3.Bucket(bucket).put_object(
-    Key=filename_only,
-    Body=fake_handle.read(),
-    ContentType='text/plain',
-    ACL='public-read'
-  )
-
 #-------------------------------------------------------------------------------
 # process
 #-------------------------------------------------------------------------------
@@ -433,71 +397,6 @@ if m3uFile:
         write2File(fd, cumulustv)
     except Exception as e:
       logging.error("can't open/write file: " + str(e))
-      sys.exit(-1)
-
-#write to s3
-s3File = config.config["outputs"].get("s3", None)
-if s3File:
-  if s3File.get("active", False):
-    try:
-      fileName = s3File["file-name"]
-      logging.info("Write to s3 file:" + fileName)
-      uploadS3(s3File["file-name"], dictToM3U(cumulustv))
-    except Exception as e:
-      logging.error("can't open/write file to s3: " + str(e))
-      sys.exit(-1)
-
-#send to DRIVE
-driveConfig = config.config["outputs"].get("google-drive", None)
-if driveConfig:
-  if driveConfig.get("active", False):
-    gauth = GoogleAuth()
-    gauth.CommandLineAuth()
-    #gauth.LocalWebserverAuth() # Creates local webserver and auto handles authentication
-    # authCode = driveConfig.get("auth-code", "")
-    # if authCode is None or authCode == "":
-    #   url = gauth.GetAuthUrl()
-    #   print "This application have not access to your Google Drive. Yo need an access code from:"
-    #   print url
-    #   print "then copy and paste the code in \"auth-code\" in the outputs/google-drive section in your config.py file"
-    #   sys.exit(0)
-
-    try:
-      #gauth.Auth(authCode)
-      drive = GoogleDrive(gauth)
-    except Exception as e:
-      print "Exception: " + str(e)
-      print "If you have problems with the application permissions try to use this url:"
-      print gauth.GetAuthUrl()
-      print "then copy and paste the code in the outputs/google-drive/auth-code section in your config.py file"
-      sys.exit(-1)
-
-    fileName = driveConfig.get("file-name", "cumulustv.json")
-    jsonContent = json.dumps(cumulustv, ensure_ascii=True)
-
-    try:
-      cumulusTVFile = drive.CreateFile({'title': fileName, 'mimeType': 'application/json'})  # Create GoogleDriveFile instance with title 'Hello.txt'
-      cumulusTVFile.SetContentString(jsonContent) # Set content of the file from given string
-      cumulusTVFile.Upload()
-      print "Uploaded to drive: " + fileName
-    except Exception as e:
-      err="Google Drive upload exception: " + str(e)
-      print err
-      logging.error(err)
-
-#send json to disk
-jsonOutput = config.config["outputs"].get("json-file", None)
-if jsonOutput:
-  if jsonOutput.get("active", False):
-    fileName = jsonOutput.get("file-name", "cumulustv.json")
-    logging.info("Cumulus tv json - write to file:" + fileName)
-    jsonContent = json.dumps(cumulustv, ensure_ascii=False)
-    try:
-      logging.info("Write to file:" + fileName)
-      with open(fileName, "w") as fd:
-        fd.write(jsonContent)
-    except Exception as e:
-      logging.error("ERROR saving json file: " + str(e))
       sys.exit(-1)
 
 logging.info("END -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*")
