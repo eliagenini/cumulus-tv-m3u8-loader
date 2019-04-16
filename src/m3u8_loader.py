@@ -294,7 +294,38 @@ def process(m3u, provider, cumulustv, contStart=None):
 
     return contStart
 
+def translate(url, proxy):
+    dest = url
+    if url.startswith('udp'):
+        dest = "http://" + proxy + "/udp/" + "".join(url.rsplit("udp://"))
+        logging.debug("found multicast on " + str(url) + ". Translated to " + dest)
+        return
+    elif url.startswith('rtp'):
+        dest = "http://" + proxy + "/rtp/" + "".join(url.rsplit("rtp://"))
+        logging.debug("found multicast on " + str(url) + ". Translated to " + dest)
+
+    return dest
+
+
 def dictToM3U(cumulustv):
+    if config.config["udpxy"].get("hostname") is not None:
+
+        if config.config["udpxy"].get("hostname") is not None:
+            hostname = config.config["udpxy"].get("hostname")
+
+        if config.config["udpxy"].get("port") is not None:
+            port = config.config["udpxy"].get("port")
+
+    if hostname is not None:
+        if port is not None:
+            proxy = hostname + ":" + port
+        else:
+            proxy = hostname
+    else:
+        proxy = None
+
+    logging.info(" Proxy: " + proxy)
+
     channels = cumulustv["channels"]
     channelDataMap = [
         ("number", "tvg-id"),
@@ -312,7 +343,7 @@ def dictToM3U(cumulustv):
             if channel[dataId] is not None and channel[dataId] != "":
                 m3uStr += " " + extinfId + "=\"" + channel[dataId].strip() + "\""
         m3uStr += "," + channel["name"].strip() + "\n"
-        m3uStr += channel["url"] + "\n"
+        m3uStr += translate(channel["url"], proxy) + "\n"
 
     return m3uStr
 
