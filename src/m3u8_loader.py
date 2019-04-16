@@ -43,6 +43,7 @@ logo_regex = '.*?tvg-logo=[\'"](.*?)[\'"]'
 lang_regex = '.*?tvg-language=[\'"](.*?)[\'"]'
 country_regex = '.*?tvg-country=[\'"](.*?)[\'"]'
 id_regex = '.*?tvg-id=[\'"](.*?)[\'"]'
+chno_regex  = '.*?tvg-chno=[\'"](.*?)[\'"]'
 
 m3uRe = re.compile(m3u_regex)
 nameRe = re.compile(name_regex)
@@ -51,6 +52,7 @@ langRe = re.compile(lang_regex)
 countryRe = re.compile(country_regex)
 idRe = re.compile(id_regex)
 groupRe = re.compile(group_regex)
+chnoRe = re.compile(chno_regex)
 
 urlCollector = []
 
@@ -176,7 +178,7 @@ def validate(validation, url):
   return ret not in validation["return-code-error"]
 
 
-def verifyFilters(filters, name, country, group, lang):
+def verifyFilters(filters, name, country, group, lang, chno):
   """
   @:return True if the channel pass the filter validation
   """
@@ -197,6 +199,11 @@ def verifyFilters(filters, name, country, group, lang):
   filterLang = filters.get("lang", None)
   if filterLang is not None:
     if lang is None or lang.lower() not in filterLang:
+      return False
+
+  filterChno = filters.get("chno", None)
+  if filterChno is not None:
+    if chno is None or chno.lower() not in filterChno:
       return False
 
   filterName = filters.get("names", None)
@@ -228,11 +235,12 @@ def process(m3u, provider, cumulustv, contStart=None):
     country = regParse(countryRe, extInfData)
     group = regParse(groupRe, extInfData)
     lang = regParse(langRe, extInfData)
+    chno = regParse(chnoRe, extInfData)
 
     if name is None or name == "":
       name = regParse(nameRe, extInfData)
 
-    if verifyFilters(filters, name, country, group, lang):
+    if verifyFilters(filters, name, country, group, lang, chno):
 
       if urlEndChar and urlEndChar != "":
         url = url.split(urlEndChar)[0]
@@ -273,7 +281,8 @@ def process(m3u, provider, cumulustv, contStart=None):
           "url": url,
           "genres": genres,
           "lang": lang, #extra data not defined in cumulus tv
-          "country": country #extra data not defined in cumulus tv
+          "country": country, #extra data not defined in cumulus tv
+          "chno": chno #extra data not defined in cumulus tv
         }
         cumulustv["channels"].append(cumulusData)
 
@@ -283,6 +292,7 @@ def process(m3u, provider, cumulustv, contStart=None):
         logging.info("     - genres         : " + str(genres))
         logging.info("     - language       : " + str(lang))
         logging.info("     - country        : " + str(country))
+        logging.info("     - chno        : " + str(chno))
 
   return contStart
 
@@ -295,7 +305,8 @@ def dictToM3U(cumulustv):
     ("logo", "tvg-logo"),
     ("genres", "group-title"),
     ("country", "tvg-country"),
-    ("lang", "tvg-language")
+    ("lang", "tvg-language"),
+    ("chno", "tvg-chno")
   ]
   m3uStr = "#EXTM3U\n"
   for channel in channels:
