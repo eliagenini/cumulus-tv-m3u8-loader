@@ -17,6 +17,11 @@ except ImportError:
     print("config.py file not found! to create one copy the configToCopy.py over config.py and modify.")
     sys.exit(-1)
 
+try:
+    import mapping as mapping
+except ImportError:
+    mapping = {}
+
 """
 Parser for Cumulus TV
 https://github.com/Fleker/CumulusTV
@@ -86,7 +91,7 @@ class Command(object):
         print ("RETURN: " + str(ret))
         return ret
 
-def loadm3u(url):
+def load(url):
     hdr = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11',
            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
            'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
@@ -111,7 +116,6 @@ def regParse(parser, data):
         return foundString.group(1).strip()
     return None
 
-
 def filterByName(filterNames, name):
     """
     Verify channel name contains string
@@ -129,51 +133,11 @@ def filterByName(filterNames, name):
 
     return False
 
-
-def mapGenres(genre, provider):
-    if genre:
-        genre = genre.lower()
-        genres = config.config["providers"][provider].get("genres-map", None)
-        if genres and genre in genres:
-            return genres[genre]
-    return genre or ""
-
-
-def mapGenresByName(name, provider):
-    ret = ""
-    if name != "":
-        name = name.lower()
-        genres = config.config["providers"][provider].get("genres-map-by-name", None)
-        if genres:
-            for partialName in genres.keys():
-                if partialName.lower() in name:
-                    ret = genres[partialName]
-                    break
-    return ret or ""
-
-
-def possibleGenres(cumulustv):
-    """
-    all genres in channels
-    :param cumulustv:
-    :return: genres array
-    """
-    retGenres = []
-    for channel in cumulustv["channels"]:
-        if "genres" in channel:
-            genres = channel["genres"].split(",")
-            for genre in genres:
-                if genre not in retGenres:
-                    retGenres.append((genre))
-    return retGenres
-
-
 def validate(validation, url):
     cmd = Command(str.replace(validation["command"], "__file__", url),
                   killTimeoutCmd=validation.get("timeout-kill-command", None))
     ret = cmd.run(timeout=validation.get("timeout-secs", 3))
     return ret not in validation["return-code-error"]
-
 
 def verifyFilters(filters, name, country, group, lang, chno):
     """
@@ -213,7 +177,6 @@ def verifyFilters(filters, name, country, group, lang, chno):
                 return False
 
     return True
-
 
 def process(m3u, provider, cumulustv, contStart=None):
 
@@ -257,17 +220,19 @@ def process(m3u, provider, cumulustv, contStart=None):
             #valid url
             valid = valid and validators.url(url) == True
 
-            name = formatName(name)
             tvgid = formatId(name)
+            if tvgid in mapping.channels:
+                c = mapping.channels[tvgid]
+
+                id = c.get("id")
+                name = c.get("name")
+                chno = str(c.get("number"))
+                logo = c.get("logo")
 
             logging.info(" - Channel: " + name + " - tvgid: " + tvgid + " - valid: " + str(valid) + " " + url)
 
             if valid:
                 contStart += 1
-
-                genres = mapGenres(group, provider)
-                if genres.strip() == "":
-                    genres = mapGenresByName(name, provider)
 
                 #valid logo:
                 if logo is not None and logo != "":
@@ -275,12 +240,11 @@ def process(m3u, provider, cumulustv, contStart=None):
                         logo = None
 
                 cumulusData = {
-                    "number": str(contStart),
-                    "id": formatName(name),
+                    "number": chno,
+                    "id": id,
                     "name": name,
                     "logo": logo,
                     "url": url,
-                    "genres": genres,
                     "lang": lang, #extra data not defined in cumulus tv
                     "country": country, #extra data not defined in cumulus tv
                     "chno": chno #extra data not defined in cumulus tv
@@ -290,7 +254,6 @@ def process(m3u, provider, cumulustv, contStart=None):
                 urlCollector.append(url)
 
                 logging.info("     - assigned number: " + str(contStart))
-                logging.info("     - genres         : " + str(genres))
                 logging.info("     - language       : " + str(lang))
                 logging.info("     - country        : " + str(country))
                 logging.info("     - chno        : " + str(chno))
@@ -347,7 +310,6 @@ def dictToM3U(cumulustv):
         ("id", "tvg-id"),
         ("name", "tvg-name"),
         ("logo", "tvg-logo"),
-        ("genres", "group-title"),
         ("country", "tvg-country"),
         ("lang", "tvg-language"),
         ("number", "tvg-chno")
@@ -417,18 +379,12 @@ for provider, providerData in config.config["providers"].items():
         logging.info("Provider: " + provider + " ======================")
         logging.info("url     : " + providerData["url"])
         try:
-            m3uContent = loadm3u(providerData["url"])
+            m3uContent = load(providerData["url"])
         except Exception as e:
             logging.error("loading " + providerData["url"] + " - " + str(e))
         else:
             startAt = int(providerData.get("first-channel-number", startAt))
             startAt += process(m3uContent, provider, cumulustv, startAt)
-
-            genres = possibleGenres(cumulustv)
-            if len(genres) > 0:
-                cumulustv.update({"possibleGenres": genres})
-
-            #pp.pprint(cumulustv)
 
 logging.info("END - Channels loaded: " + str(len(urlCollector)))
 
