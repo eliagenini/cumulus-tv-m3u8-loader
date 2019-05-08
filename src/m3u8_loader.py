@@ -257,7 +257,8 @@ def process(m3u, provider, cumulustv, contStart=None):
             #valid url
             valid = valid and validators.url(url) == True
 
-            tvgid = formatName(name)
+            name = formatName(name)
+            tvgid = formatId(name)
 
             logging.info(" - Channel: " + name + " - tvgid: " + tvgid + " - valid: " + str(valid) + " " + url)
 
@@ -315,9 +316,12 @@ def formatName(name):
     for word in bad:
         name = name.replace(word.lower(), '')
 
-    name = name.lstrip().rstrip().replace(' ', '-').lower()
-
     return name
+
+def formatId(name):
+    id = formatName(name)
+
+    return id.lstrip().rstrip().replace(' ', '-').lower()
 
 def dictToM3U(cumulustv):
     if config.config["udpxy"].get("hostname") is not None:
