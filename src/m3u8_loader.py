@@ -1,6 +1,6 @@
 
 import sys
-import urllib2
+import urllib.request
 import re
 import time
 import pprint
@@ -14,7 +14,7 @@ import validators
 try:
     import config as config
 except ImportError:
-    print "config.py file not found! to create one copy the configToCopy.py over config.py and modify."
+    print("config.py file not found! to create one copy the configToCopy.py over config.py and modify.")
     sys.exit(-1)
 
 """
@@ -66,7 +66,7 @@ class Command(object):
     def run(self, timeout):
         ret = 0
         def target():
-            print "RUN:" + self.cmd
+            print ("RUN:" + self.cmd)
             self.process = subprocess.Popen(self.cmd, shell=True)
             self.process.communicate()
 
@@ -77,13 +77,13 @@ class Command(object):
         if thread.is_alive():
             self.process.terminate()
             thread.join()
-            print "TIMEOUT"
+            print ("TIMEOUT")
             ret = 256
             if self.killTimeoutCmd is not None:
                 os.system(self.killTimeoutCmd)
         else:
             ret = self.process.returncode
-        print "RETURN: " + str(ret)
+        print ("RETURN: " + str(ret))
         return ret
 
 def loadm3u(url):
@@ -94,9 +94,9 @@ def loadm3u(url):
            'Accept-Language': 'en-US,en;q=0.8',
            'Connection': 'keep-alive'}
 
-    req = urllib2.Request(url, headers=hdr)
-    response = urllib2.urlopen(req)
-    data = response.read()
+    req = urllib.request.Request(url, headers=hdr)
+    response = urllib.request.urlopen(req)
+    data = response.read().decode('utf-8')
 
     if not 'EXTM3U' in data:
         raise Exception(url + " is not a m3u8 file.")
@@ -108,7 +108,6 @@ def loadm3u(url):
 def regParse(parser, data):
     foundString = parser.search(data)
     if foundString:
-        #print "regParse result", x.group(1)
         return foundString.group(1).strip()
     return None
 
@@ -249,7 +248,7 @@ def process(m3u, provider, cumulustv, contStart=None):
                     valid = validate(validation, url)
                 except Exception as e:
                     valid = False
-                    print "Validation error:" + str(e)
+                    print ("Validation error:" + str(e))
                     pass
 
             #avoid duplicates
@@ -258,7 +257,9 @@ def process(m3u, provider, cumulustv, contStart=None):
             #valid url
             valid = valid and validators.url(url) == True
 
-            logging.info(" - Channel: " + name + " - valid: " + str(valid) + " " + url)
+            tvgid = formatName(name)
+
+            logging.info(" - Channel: " + name + " - tvgid: " + tvgid + " - valid: " + str(valid) + " " + url)
 
             if valid:
                 contStart += 1
@@ -274,6 +275,7 @@ def process(m3u, provider, cumulustv, contStart=None):
 
                 cumulusData = {
                     "number": str(contStart),
+                    "id": formatName(name),
                     "name": name,
                     "logo": logo,
                     "url": url,
@@ -306,6 +308,16 @@ def translate(url, proxy):
 
     return dest
 
+def formatName(name):
+
+    bad = config.config["bad"]
+    name = name.lower()
+    for word in bad:
+        name = name.replace(word.lower(), '')
+
+    name = name.lstrip().rstrip().replace(' ', '-').lower()
+
+    return name
 
 def dictToM3U(cumulustv):
     if config.config["udpxy"].get("hostname") is not None:
@@ -328,13 +340,13 @@ def dictToM3U(cumulustv):
 
     channels = cumulustv["channels"]
     channelDataMap = [
-        ("number", "tvg-id"),
+        ("id", "tvg-id"),
         ("name", "tvg-name"),
         ("logo", "tvg-logo"),
         ("genres", "group-title"),
         ("country", "tvg-country"),
         ("lang", "tvg-language"),
-        ("chno", "tvg-chno")
+        ("number", "tvg-chno")
     ]
     m3uStr = "#EXTM3U\n"
     for channel in channels:
@@ -396,7 +408,7 @@ cumulustv = {"channels": [],
              "timestamp": str(time.time())}
 startAt = 0  #first channel number - 1
 
-for provider, providerData in config.config["providers"].iteritems():
+for provider, providerData in config.config["providers"].items():
     if providerData.get("active", False):
         logging.info("Provider: " + provider + " ======================")
         logging.info("url     : " + providerData["url"])
